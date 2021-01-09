@@ -6,32 +6,35 @@ import com.github.vivekkothari.command.CloseElevatorCommand;
 import com.github.vivekkothari.command.ElevatorCommand;
 import com.github.vivekkothari.command.MoveElevatorCommand;
 import com.github.vivekkothari.config.EMSConfig;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ElevatorLobby {
 
-  private int timeline = -1;
-  private Map<Integer, List<GotoFloorRequest>> requests = new HashMap<>();
+  private static final Logger log = LoggerFactory.getLogger(ElevatorLobby.class);
+  private int timeline;
   public static ElevatorLobby INSTANCE = null;
 
+  private final AtomicBoolean canExit;
   private final List<Elevator> elevators;
 
-  private ElevatorLobby(List<Elevator> elevators) {
+  private ElevatorLobby(List<Elevator> elevators, AtomicBoolean canExit) {
     this.elevators = elevators;
+    this.canExit = canExit;
   }
 
-  public static ElevatorLobby initializeLobby(EMSConfig config) {
+  public static ElevatorLobby initializeLobby(EMSConfig config, AtomicBoolean canExit) {
     if (INSTANCE == null) {
       var elevators = IntStream.range(0, config.getNumberOfLifts())
           .mapToObj(i -> Elevator
               .from(i + 1, config.getNumberOfFloors(), config.getEmsRules().getStartFloor()))
           .collect(Collectors.toList());
-      INSTANCE = new ElevatorLobby(elevators);
+      INSTANCE = new ElevatorLobby(elevators, canExit);
     }
     return INSTANCE;
   }
@@ -63,7 +66,7 @@ public class ElevatorLobby {
   }
 
   /**
-   * Selects the elevator given the request.
+   * Selects the elevator given the request. n = no of elevators f = floors f - 1
    *
    * @param request
    * @return
@@ -84,28 +87,32 @@ public class ElevatorLobby {
     return new MoveElevatorCommand(elevator);
   }
 
-  public void simulateRun(Map<Integer, List<GotoFloorRequest>> incomingRequests) {
-    requests.putAll(incomingRequests);
+  public void simulateRun() {
     incrementTimeline();
     do {
-      elevators.forEach(elevator -> determineCommand(elevator).execute());
-    } while (!areAllLiftsStationary());
+      elevators.parallelStream().forEach(elevator -> determineCommand(elevator).execute());
+    } while (!canExit.get());
 
-    System.out.println();
-    elevators.forEach(elevator -> System.out
-        .printf("LIFT %d: %d SECONDS%n", elevator.getLiftId(), elevator.getJourneyTime()));
+    elevators.forEach(elevator -> log.info(
+        String.format("LIFT %d: %d SECONDS%n", elevator.getLiftId(), elevator.getJourneyTime())));
+  }
+
+  public void serveRequest(GotoFloorRequest request) {
+    var elevator = selectElevator(request);
+    if (elevator.isEmpty()) {
+      log.warn("No elevator found for request: " + request);
+      return;
+    }
+    log.info("Elevator selected for request: {} is {}", request, elevator.get().getLiftId());
+    new CallElevatorCommand(elevator.get(), request).execute();
   }
 
   public void incrementTimeline() {
     timeline++;
-    if (requests.containsKey(timeline)) {
-      requests.get(timeline)
-          .forEach(request -> {
-            var elevator = selectElevator(request).orElseThrow(
-                () -> new IllegalStateException("No elevator found for request: " + request));
-            System.out.printf("Elevator %s found for request: %s", elevator.getLiftId(), request);
-            new CallElevatorCommand(elevator, request).execute();
-          });
+    try {
+      Thread.sleep(5000);
+    } catch (InterruptedException e) {
+      e.printStackTrace();
     }
   }
 

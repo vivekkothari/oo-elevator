@@ -4,9 +4,12 @@ import java.util.Comparator;
 import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.Queue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Elevator {
 
+  private static final Logger log = LoggerFactory.getLogger(Elevator.class);
   private final int liftId;
   private final int maxFloor;
   private DoorStatus doorStatus;
@@ -48,24 +51,24 @@ public class Elevator {
 
   public void open() {
     doorStatus = DoorStatus.OPEN;
-    System.out.println("LIFT " + liftId + " OPENS");
-    System.out.println(this);
+    log.info("LIFT " + liftId + " OPENS");
+    log.info(this.toString());
     ElevatorLobby.INSTANCE.incrementTimeline();
     journeyTime++;
   }
 
   public void openAndMoveUp() {
-    doorStatus = DoorStatus.OPEN;
     goUp();
-    System.out.println(this);
+    doorStatus = DoorStatus.OPEN;
+    log.info(this.toString());
     ElevatorLobby.INSTANCE.incrementTimeline();
     journeyTime++;
   }
 
   public void openAndMoveDown() {
-    doorStatus = DoorStatus.OPEN;
     goDown();
-    System.out.println(this);
+    doorStatus = DoorStatus.OPEN;
+    log.info(this.toString());
     ElevatorLobby.INSTANCE.incrementTimeline();
     journeyTime++;
   }
@@ -80,7 +83,7 @@ public class Elevator {
 
   public void close() {
     doorStatus = DoorStatus.CLOSED;
-    System.out.println(this);
+    log.info(this.toString());
     ElevatorLobby.INSTANCE.incrementTimeline();
     journeyTime++;
   }
@@ -91,7 +94,7 @@ public class Elevator {
     } else {
       goDown();
     }
-    System.out.println(this);
+    log.info(this.toString());
     ElevatorLobby.INSTANCE.incrementTimeline();
     journeyTime++;
   }

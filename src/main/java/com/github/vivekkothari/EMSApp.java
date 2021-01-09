@@ -5,34 +5,34 @@ import com.github.vivekkothari.config.EMSRules;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.List;
-import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class EMSApp {
 
+  private static final Logger log = LoggerFactory.getLogger(EMSApp.class);
+
   public static void main(String[] args) throws IOException {
 
-    try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
-      System.out.println("Welcome to Elevator management system.");
-      System.out.print("Please enter number of lifts: ");
-      var lifts = Integer.parseInt(reader.readLine());
-      System.out.print("Please enter number of floors: ");
-      var floors = Integer.parseInt(reader.readLine());
+    int floors, lifts;
 
-      var config = new EMSConfig(lifts, floors, new EMSRules());
-      var lobby = ElevatorLobby.initializeLobby(config);
+    AtomicBoolean canExit = new AtomicBoolean(false);
 
-      var requests = Map.of(
-          0, List.of(new GotoFloorRequest(0, 7), new GotoFloorRequest(3, 0)
-          ),
-          2, List.of(new GotoFloorRequest(4, 6))
-      );
+    var reader = new BufferedReader(new InputStreamReader(System.in));
+    log.info("Welcome to Elevator management system.");
+    log.info("Please enter number of lifts: ");
+    lifts = Integer.parseInt(reader.readLine());
+    log.info("Please enter number of floors: ");
+    floors = Integer.parseInt(reader.readLine());
 
-      System.out.println();
-      lobby.simulateRun(requests);
+    var config = new EMSConfig(lifts, floors, new EMSRules());
+    var lobby = ElevatorLobby.initializeLobby(config, canExit);
+    var dispatcher = new ElevatorDispatcher(lobby, floors, canExit);
 
-    }
-
+    new Thread(dispatcher::readRequest, "producer").start();
+    new Thread(dispatcher::serveRequest, "consumer").start();
+    new Thread(lobby::simulateRun, "simulator").start();
   }
 
 
